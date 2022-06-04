@@ -1,3 +1,19 @@
 clickable_minimum_required: 7.1.2
 builder: cmake
 kill: chromecaster-ut
+
+image_setup:
+  run:
+    - wget https://dl.google.com/go/go1.17.7.linux-amd64.tar.gz
+    - rm -rf /usr/local/go
+    - tar -C /usr/local -xzf go*.tar.gz
+    - go version
+
+libraries:
+  chromecast:
+    builder: custom
+    build:
+      - ${ROOT}/download-chromecast.sh ${ARCH} ${SRC_DIR}
+
+install_data:
+  ${CHROMECAST_LIB_INSTALL_DIR}/go-chromecast: ./go-chromecast

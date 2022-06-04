@@ -34,7 +34,7 @@ MainView {
 
         header: PageHeader {
             id: header
-            title: i18n.tr('Chromecaster')
+            title: serverReady ? i18n.tr('Chromecaster') : i18n.tr('Loading...')
         }
 
         ColumnLayout {
