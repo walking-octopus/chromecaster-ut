@@ -26,7 +26,7 @@ MainView {
     applicationName: 'chromecaster-ut.walking-octopus'
     automaticOrientation: true
 
-    width: units.gu(45)
+    width: units.gu(85)
     height: units.gu(75)
 
     Page {
@@ -35,37 +35,90 @@ MainView {
         header: PageHeader {
             id: header
             title: serverReady ? i18n.tr('Chromecaster') : i18n.tr('Loading...')
+            flickable: scrollView.flickableItem
         }
 
-        ColumnLayout {
-            spacing: units.gu(2)
-            anchors {
-                margins: units.gu(2)
-                top: header.bottom
-                left: parent.left
-                right: parent.right
-                bottom: parent.bottom
+        ScrollView {
+            id: scrollView
+            anchors.fill: parent
+            ListView {
+                id: view
+                anchors.fill: parent
+
+                model: deviceModel
+                delegate: ListItem {
+                    ListItemLayout {
+                        title.text: device_name
+                        subtitle.text: device_type
+                        summary.text: status
+                    }
+                }
+            }
+        }
+
+        Timer {
+            id: searchTimer
+            running: serverReady
+            repeat: true
+            interval: 1500
+            onTriggered: chromecast.list_devices()
+        }
+
+        Item {
+            id: chromecast
+
+            ListModel {
+                id: deviceModel
             }
 
-            Item {
-                Layout.fillHeight: true
-            }
+            function list_devices() {
+                request("http://localhost:8011/devices").then(response => {
+                    const data = JSON.parse(response);
 
-            Label {
-                id: label
-                Layout.alignment: Qt.AlignHCenter
-                text: i18n.tr('Press the button below and check the logs!')
-            }
-
-            Button {
-                Layout.alignment: Qt.AlignHCenter
-                text: i18n.tr('Press here!')
-                onClicked: print("123")
-            }
-
-            Item {
-                Layout.fillHeight: true
+                    deviceModel.clear();
+                    for (const device of data) {
+                        print(`Parsing ${device.device_name}...`)
+                        deviceModel.append({
+                            "uuid": device.uuid,
+                            "device_name": device.device_name,
+                            "device_type": device.device_type,
+                            "status": device.status,
+                        });
+                    }
+                })
+                .catch((error) => {
+                    console.error(`Error: $ {
+                        error
+                    }`);
+                    toast.show(
+                        i18n.tr("Error: ") + error
+                    );
+                });
             }
         }
     }
+        function request(url) {
+            return new Promise((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+
+                var timer = Qt.createQmlObject("import QtQuick 2.9; Timer {interval: 4000; repeat: false; running: true;}",root,"TimeoutTimer");
+                timer.triggered.connect(function() {
+                    xhr.abort();
+                    xhr.response = "Timed out";
+                    reject("Timed out");
+                });
+
+                xhr.open("GET", url, true);
+                xhr.onload = () => {
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        resolve(xhr.response);
+                    } else {
+                        reject(xhr.status);
+                    }
+                    timer.running = false;
+                };
+                xhr.onerror = () => reject(xhr.response);
+                xhr.send();
+            });
+        }
 }
