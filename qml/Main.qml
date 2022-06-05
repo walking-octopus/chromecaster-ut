@@ -16,7 +16,7 @@
 
 import QtQuick 2.7
 import Ubuntu.Components 1.3
-//import QtQuick.Controls 2.2
+// import QtQuick.Controls 2.2
 import QtQuick.Layouts 1.3
 import Qt.labs.settings 1.0
 
@@ -47,25 +47,65 @@ MainView {
 
                 model: deviceModel
                 delegate: ListItem {
+                    height: layout.height + (divider.visible ? divider.height : 0)
+
                     ListItemLayout {
+                        id: layout
+
+                        Icon {
+                            name: "video-display-symbolic"
+                            SlotsLayout.position: SlotsLayout.Leading
+                            width: units.gu(2)
+                        }
+
                         title.text: device_name
                         subtitle.text: device_type
                         summary.text: status
+
+                        RowLayout {
+                            visible: !!status
+                            SlotsLayout.position: SlotsLayout.Trailing
+
+                            Button {
+                                iconName: "media-playback-start"
+                                onClicked: chromecast.unpause(uuid)
+                                Layout.preferredWidth: units.gu(4)
+                                color: "transparent"
+                            }
+
+                            Button {
+                                iconName: "media-playback-pause"
+                                onClicked: chromecast.pause(uuid)
+                                Layout.preferredWidth: units.gu(4)
+                                color: "transparent"
+                            }
+                        }
                     }
                 }
             }
         }
 
         Timer {
-            id: searchTimer
+            id: discoveryTimer
             running: serverReady
             repeat: true
-            interval: 1500
+            interval: 5000
+            triggeredOnStart: true
             onTriggered: chromecast.list_devices()
         }
 
+        // Timer {
+        //     id: statusTimer
+        //     running: chromecast.ready
+        //     repeat: true
+        //     interval: 4000
+        //     onTriggered: chromecast.statusUpdate()
+        // }
+
         Item {
             id: chromecast
+
+            property var connectedDevices: []
 
             ListModel {
                 id: deviceModel
@@ -77,23 +117,80 @@ MainView {
 
                     deviceModel.clear();
                     for (const device of data) {
-                        print(`Parsing ${device.device_name}...`)
+                        print(`Parsing ${device.device_name}...`);
                         deviceModel.append({
                             "uuid": device.uuid,
                             "device_name": device.device_name,
                             "device_type": device.device_type,
-                            "status": device.status,
+                            "status": device.info_fields.rs,
                         });
                     }
+                    print("End of device list.");
+
                 })
                 .catch((error) => {
-                    console.error(`Error: $ {
-                        error
-                    }`);
-                    toast.show(
-                        i18n.tr("Error: ") + error
-                    );
+                    console.error(`Error: ${error}`);
                 });
+            }
+
+            function status(uuid) {
+                connect(uuid).then(status => {
+                    request(`http://localhost:8011/status?uuid=${uuid}`).then(response => {
+                        const data = JSON.parse(response);
+
+                        print(JSON.stringify(data));
+                    })
+                    .catch((error) => {
+                        print(`Can't get status: ${error}`);
+                    });
+                }).catch((error) => {
+                    print(`Connection error: ${error}`);
+                });
+            }
+
+            function unpause(uuid) {
+                connect(uuid).then(status => {
+                    request(`http://localhost:8011/unpause?uuid=${uuid}`).catch((error) => {
+                        print(`Can't unpause: ${error}`);
+                    });
+                }).catch((error) => {
+                    print(`Connection error: ${error}`);
+                });
+            }
+
+            function pause(uuid) {
+                connect(uuid).then(status => {
+                    request(`http://localhost:8011/pause?uuid=${uuid}`).catch((error) => {
+                        print(`Can't pause: ${error}`);
+                    });
+                }).catch((error) => {
+                    print(`Connection error: ${error}`);
+                });
+            }
+
+            function connect(uuid) {
+                print(connectedDevices);
+
+                return new Promise((resolve, reject) => {
+                    if (connectedDevices.includes(uuid)) {
+                        resolve("Already connected");
+                    }
+
+                    if (connectedDevices.length > 3) {
+                        request('http://localhost:8011/disconnect-all').then(response => {
+                            connectedDevices = [];
+                        }).catch((error) => {
+                            reject(error);
+                        });
+                    }
+
+                    request(`http://localhost:8011/connect?uuid=${uuid}`).then(response => {
+                        connectedDevices.push(uuid);
+                        resolve("Connected");
+                    }).catch((error) => {
+                        reject(error);
+                    });
+                })
             }
         }
     }
