@@ -63,7 +63,7 @@ MainView {
                         summary.text: status
 
                         RowLayout {
-                            visible: !!status
+                            // visible: !!status
                             SlotsLayout.position: SlotsLayout.Trailing
 
                             Button {
@@ -76,6 +76,13 @@ MainView {
                             Button {
                                 iconName: "media-playback-pause"
                                 onClicked: chromecast.pause(uuid)
+                                Layout.preferredWidth: units.gu(4)
+                                color: "transparent"
+                            }
+
+                            Button {
+                                iconName: "document-open"
+                                onClicked: chromecast.load("https://samplelib.com/lib/preview/mp3/sample-15s.mp3", uuid)
                                 Layout.preferredWidth: units.gu(4)
                                 color: "transparent"
                             }
@@ -117,7 +124,6 @@ MainView {
 
                     deviceModel.clear();
                     for (const device of data) {
-                        print(`Parsing ${device.device_name}...`);
                         deviceModel.append({
                             "uuid": device.uuid,
                             "device_name": device.device_name,
@@ -125,11 +131,21 @@ MainView {
                             "status": device.info_fields.rs,
                         });
                     }
-                    print("End of device list.");
-
                 })
                 .catch((error) => {
                     console.error(`Error: ${error}`);
+                });
+            }
+
+            function load(url, uuid) {
+                print(url, uuid)
+                connect(uuid).then(status => {
+                    const type = url.split('.').pop();
+                    request(`http://localhost:8011/load?uuid=${uuid}&path=${url}&content_type=${type}`).catch((error) => {
+                        print(`Can't load media: ${error}`);
+                    });
+                }).catch((error) => {
+                    print(`Connection error: ${error}`);
                 });
             }
 
